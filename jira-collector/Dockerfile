@@ -28,30 +28,58 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM registry1.dso.mil/ironbank/redhat/openjdk/openjdk8
+FROM centos/systemd
 
 ARG API_VERSION=3.2.9
+ARG UI_VERSION=3.1.0
+ARG GITHUB_GRAPHQL_VERSION=3.1.6
+ARG JENKINS_VERSION=3.1.1
+ARG SONAR_VERSION=3.1.8
 
 ENV container docker
 
-USER 0
-
 RUN mkdir -p /hygieia/logs; \
+mkdir -p /hygieia/ui/; \
 mkdir -p /hygieia/api/; \
+mkdir -p /hygieia/collectors/; \
 mkdir -p /hygieia/cacerts
+
+RUN yum -y install httpd; \
+yum -y install java-1.8.0-openjdk-devel; \
+yum clean all; 
 
 # Pulls API jar
 RUN curl -o /hygieia/api/api.jar https://repo.maven.apache.org/maven2/com/capitalone/dashboard/api/${API_VERSION}/api-${API_VERSION}.jar
 
+# Pulls UI tar
+RUN curl -o /hygieia/ui/ui.tar.gz https://repo.maven.apache.org/maven2/com/capitalone/dashboard/UI/${UI_VERSION}/UI-${UI_VERSION}-src.tar.gz
+
+# Pulls Github Collector jar
+RUN curl -o /hygieia/collectors/github-graphql-scm-collector.jar https://repo.maven.apache.org/maven2/com/capitalone/dashboard/github-graphql-scm-collector/${GITHUB_GRAPHQL_VERSION}/github-graphql-scm-collector-${GITHUB_GRAPHQL_VERSION}.jar
+
+# Pulls Sonar Collector jar
+RUN curl -o /hygieia/collectors/sonar-codequality-collector.jar https://repo.maven.apache.org/maven2/com/capitalone/dashboard/sonar-codequality-collector/${SONAR_VERSION}/sonar-codequality-collector-${SONAR_VERSION}.jar
+
+# Pulls Jenkins Collector jar
+RUN curl -o /hygieia/collectors/jenkins-build-collector.jar https://repo.maven.apache.org/maven2/com/capitalone/dashboard/jenkins-build-collector/${JENKINS_VERSION}/jenkins-build-collector-${JENKINS_VERSION}.jar
+
+WORKDIR /hygieia/ui
+RUN tar -zvxf ui.tar.gz
+RUN mv UI-${UI_VERSION}/dist/* /var/www/html/
+
 EXPOSE 8080
+EXPOSE 80
 
 ENV JAVA_HOME /usr/lib/jvm/java-openjdk
 ENV PROP_FILE /hygieia/application.properties
 
 
 COPY /api/* /hygieia/api/
-COPY /properties-builder.sh /hygieia/
-COPY /entrypoint.sh /hygieia/
+COPY /system/* /etc/systemd/system/
+COPY /collectors/* /hygieia/collectors/
+COPY /ui/httpd.conf /etc/httpd/conf/
+ADD /certs/* /hygieia/cacerts/
+ADD /properties-builder.sh /hygieia/
 
 # For adding certs
 RUN ls -1 /hygieia/cacerts | while read cert; do \
@@ -60,14 +88,14 @@ RUN ls -1 /hygieia/cacerts | while read cert; do \
        rm $cert.der; \
    done
 
+RUN systemctl enable hygieiaapp.service; \
+	systemctl enable sonarcollector.service; \
+	systemctl enable jenkinscollector.service; \
+	systemctl enable githubcollector.service; \
+	systemctl enable httpd.service
+
 WORKDIR /hygieia/
 RUN chmod 777 properties-builder.sh 
-RUN chmod 777 entrypoint.sh
 
-RUN /bin/sh /hygieia/properties-builder.sh
-
-RUN chown -R 1001 /hygieia
-
-USER 1001
-
-ENTRYPOINT ["/hygieia/entrypoint.sh"]
+ENTRYPOINT ["/hygieia/properties-builder.sh"]
+CMD ["/usr/sbin/init"]

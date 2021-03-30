@@ -30,18 +30,18 @@
 
 FROM registry1.dso.mil/ironbank/redhat/openjdk/openjdk8
 
-ARG API_VERSION=3.2.9
+ARG GITLAB_SCM_VERSION=3.1.0
 
 ENV container docker
 
 USER 0
 
 RUN mkdir -p /hygieia/logs; \
-mkdir -p /hygieia/api/; \
+mkdir -p /hygieia/collectors/; \
 mkdir -p /hygieia/cacerts
 
-# Pulls API jar
-RUN curl -o /hygieia/api/api.jar https://repo.maven.apache.org/maven2/com/capitalone/dashboard/api/${API_VERSION}/api-${API_VERSION}.jar
+# Pulls GitLab Collector jar
+RUN curl -o /hygieia/collectors/gitlab-scm-collector.jar https://repo.maven.apache.org/maven2/com/capitalone/dashboard/gitlab-scm-collector/${GITLAB_SCM_VERSION}/gitlab-scm-collector-${GITLAB_SCM_VERSION}.jar
 
 EXPOSE 8080
 
@@ -49,9 +49,10 @@ ENV JAVA_HOME /usr/lib/jvm/java-openjdk
 ENV PROP_FILE /hygieia/application.properties
 
 
-COPY /api/* /hygieia/api/
-COPY /properties-builder.sh /hygieia/
-COPY /entrypoint.sh /hygieia/
+COPY logback.xml /hygieia/collectors/
+COPY properties-builder.sh /hygieia/
+
+COPY entrypoint.sh /hygieia/collectors
 
 # For adding certs
 RUN ls -1 /hygieia/cacerts | while read cert; do \
@@ -61,8 +62,8 @@ RUN ls -1 /hygieia/cacerts | while read cert; do \
    done
 
 WORKDIR /hygieia/
-RUN chmod 777 properties-builder.sh 
-RUN chmod 777 entrypoint.sh
+RUN chmod 777 properties-builder.sh
+RUN chmod 777 collectors/entrypoint.sh
 
 RUN /bin/sh /hygieia/properties-builder.sh
 
@@ -70,4 +71,4 @@ RUN chown -R 1001 /hygieia
 
 USER 1001
 
-ENTRYPOINT ["/hygieia/entrypoint.sh"]
+ENTRYPOINT ["/hygieia/collectors/entrypoint.sh"]
