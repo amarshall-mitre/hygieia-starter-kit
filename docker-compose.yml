@@ -20,10 +20,10 @@ services:
       - "27017:27017"
     volumes:
       - ./data/mongodb:/data/db
-#  jira-collector:
-#    build: ./jira-collector
-#    ports:
-#      - "8080:8080"
+  jira-collector:
+    build: ./jira-collector
+    ports:
+      - "8080:8080"
   gitlab-scm-collector:
     build: ./gitlab-scm-collector
     ports:
